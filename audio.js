@@ -1,4 +1,4 @@
-// ===== 8bit風 Web Audio Engine (iOS対応強化版) =====
+// ===== 8bit風 Web Audio Engine (iOS対応強化版 + パック対応) =====
 class AudioEngine {
     constructor() {
         this.audioContext = null;
@@ -11,9 +11,11 @@ class AudioEngine {
         this.beatInterval = null;
         this.wasPlayingBeforePause = false;
         this.needsResume = false;  // 再開が必要かどうか
+        this.currentPackId = null;
 
         this.initAudioContext();
-        this.createSounds();
+        // パック対応: createSounds() を loadPack() に置き換え
+        // パックのロードは app.js から行う
     }
 
     initAudioContext() {
@@ -172,78 +174,161 @@ class AudioEngine {
         }
     }
 
-    // 8bit風サウンドパターン
-    createSounds() {
-        this.sounds.kick = {
-            type: 'beat',
-            pattern: [1, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.create8bitKick(time)
+    // パックからサウンドをロード
+    loadPack(packId) {
+        if (!packManager) {
+            console.error('PackManager not available');
+            return false;
+        }
+
+        const pack = packManager.getPack(packId);
+        if (!pack) {
+            console.error('Pack not found:', packId);
+            return false;
+        }
+
+        this.currentPackId = packId;
+        this.sounds = {};
+
+        // パックの各サウンドを変換
+        Object.entries(pack.sounds).forEach(([soundId, soundData]) => {
+            this.sounds[soundId] = this.createSoundFromData(soundId, soundData);
+        });
+
+        console.log('Pack loaded:', pack.name, Object.keys(this.sounds).length, 'sounds');
+        return true;
+    }
+
+    // サウンドデータからサウンドオブジェクトを作成
+    createSoundFromData(soundId, data) {
+        const sound = {
+            type: data.type || data.category,
+            pattern: data.pattern || [1, 0, 0, 0, 0, 0, 0, 0],
+            notes: data.notes || null,
+            waveType: data.waveType || 'square',
+            isArp: data.isArp || false,
+            params: data.params || {}
         };
 
-        this.sounds.snare = {
-            type: 'beat',
-            pattern: [0, 0, 1, 0, 0, 0, 1, 0],
-            create: (time) => this.create8bitSnare(time)
+        // create関数を動的に設定
+        sound.create = (time, note) => {
+            this.playSoundFromData(time, sound, note);
         };
 
-        this.sounds.hihat = {
-            type: 'beat',
-            pattern: [1, 1, 1, 1, 1, 1, 1, 1],
-            create: (time) => this.create8bitHihat(time)
-        };
+        return sound;
+    }
 
-        this.sounds.synth1 = {
-            type: 'melody',
-            pattern: [1, 0, 0, 1, 0, 0, 1, 0],
-            notes: ['C4', 'E4', 'G4', 'C5'],
-            create: (time, note) => this.create8bitMelody(time, note, 'square')
-        };
+    // データに基づいてサウンドを再生
+    playSoundFromData(time, sound, note) {
+        const category = sound.type;
+        const waveType = sound.waveType || 'square';
 
-        this.sounds.synth2 = {
-            type: 'melody',
-            pattern: [0, 1, 0, 0, 1, 0, 0, 1],
-            notes: ['E4', 'G4', 'B4', 'E5'],
-            create: (time, note) => this.create8bitMelody(time, note, 'triangle')
-        };
+        if (category === 'beat') {
+            this.playBeat(time, waveType, sound.params);
+        } else if (category === 'melody' || category === 'bass') {
+            if (sound.isArp) {
+                this.create8bitArp(time, note);
+            } else {
+                this.create8bitMelody(time, note, waveType);
+            }
+        } else if (category === 'fx') {
+            this.playFx(time, sound.params);
+        }
+    }
 
-        this.sounds.piano = {
-            type: 'melody',
-            pattern: [1, 0, 1, 0, 1, 0, 1, 0],
-            notes: ['C4', 'E4', 'G4', 'B4'],
-            create: (time, note) => this.create8bitArp(time, note)
-        };
+    // ビート音再生
+    playBeat(time, waveType, params = {}) {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
 
-        this.sounds.bass1 = {
-            type: 'bass',
-            pattern: [1, 0, 0, 1, 0, 0, 1, 0],
-            notes: ['C2', 'C2', 'G2', 'G2'],
-            create: (time, note) => this.create8bitBass(time, note)
-        };
+        osc.type = waveType;
 
-        this.sounds.bass2 = {
-            type: 'bass',
-            pattern: [1, 0, 1, 0, 1, 0, 1, 0],
-            notes: ['C2', 'E2', 'G2', 'B2'],
-            create: (time, note) => this.create8bitBass(time, note)
-        };
+        const startFreq = params.startFreq || 150;
+        const endFreq = params.endFreq || 30;
+        const duration = params.duration || 0.15;
 
-        this.sounds.fx1 = {
-            type: 'fx',
-            pattern: [1, 0, 0, 0, 0, 0, 0, 0],
-            create: (time) => this.create8bitPowerUp(time)
-        };
+        osc.frequency.setValueAtTime(startFreq, time);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, time + duration * 0.7);
 
-        this.sounds.fx2 = {
-            type: 'fx',
-            pattern: [0, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.create8bitCoin(time)
-        };
+        gain.gain.setValueAtTime(0.6, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
 
-        this.sounds.vocal = {
-            type: 'fx',
-            pattern: [1, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.create8bitJump(time)
-        };
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + duration);
+    }
+
+    // FX音再生
+    playFx(time, params = {}) {
+        const fxType = params.type || 'custom';
+
+        switch (fxType) {
+            case 'powerup':
+                this.create8bitPowerUp(time);
+                break;
+            case 'coin':
+                this.create8bitCoin(time);
+                break;
+            case 'jump':
+                this.create8bitJump(time);
+                break;
+            case 'laser':
+                this.create8bitLaser(time);
+                break;
+            case 'explosion':
+                this.create8bitExplosion(time);
+                break;
+            default:
+                this.create8bitCoin(time);
+        }
+    }
+
+    // レーザー音
+    create8bitLaser(time) {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1000, time);
+        osc.frequency.exponentialRampToValueAtTime(100, time + 0.2);
+
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + 0.2);
+    }
+
+    // 爆発音
+    create8bitExplosion(time) {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(100, time);
+        osc.frequency.setValueAtTime(50, time + 0.1);
+
+        gain.gain.setValueAtTime(0.5, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + 0.4);
+    }
+
+    // 現在のパックを取得
+    getCurrentPack() {
+        if (this.currentPackId && packManager) {
+            return packManager.getPack(this.currentPackId);
+        }
+        return null;
     }
 
     noteToFreq(note) {

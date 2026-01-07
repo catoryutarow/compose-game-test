@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8BIT MUSIC FACTORY - ADMIN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-app">
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-content">
+                <div class="title-box">
+                    <h1>ADMIN</h1>
+                    <div class="subtitle">- PACK EDITOR -</div>
+                </div>
+                <a href="index.html" class="back-btn pixel-btn">BACK</a>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <main class="admin-main">
+            <!-- パック一覧パネル -->
+            <section class="panel pack-list-panel">
+                <div class="panel-header">
+                    <h2>PACKS</h2>
+                    <button class="pixel-btn small-btn" id="newPackBtn">+ NEW</button>
+                </div>
+                <div class="pack-list" id="packList">
+                    <!-- パックリストがここに表示される -->
+                </div>
+            </section>
+
+            <!-- サウンド一覧パネル -->
+            <section class="panel sound-list-panel">
+                <div class="panel-header">
+                    <h2 id="currentPackName">SELECT PACK</h2>
+                    <button class="pixel-btn small-btn" id="newSoundBtn" disabled>+ SOUND</button>
+                </div>
+                <div class="category-filter" id="categoryFilter">
+                    <button class="filter-btn active" data-category="all">ALL</button>
+                    <button class="filter-btn" data-category="beat">BEAT</button>
+                    <button class="filter-btn" data-category="melody">MELO</button>
+                    <button class="filter-btn" data-category="bass">BASS</button>
+                    <button class="filter-btn" data-category="fx">FX</button>
+                </div>
+                <div class="sound-list" id="soundList">
+                    <!-- サウンドリストがここに表示される -->
+                </div>
+            </section>
+
+            <!-- サウンド編集パネル -->
+            <section class="panel edit-panel" id="editPanel">
+                <div class="panel-header">
+                    <h2>EDIT SOUND</h2>
+                    <button class="pixel-btn small-btn danger-btn" id="deleteSoundBtn">DEL</button>
+                </div>
+                <div class="edit-content" id="editContent">
+                    <form id="soundForm">
+                        <!-- 基本情報 -->
+                        <div class="form-group">
+                            <label>NAME</label>
+                            <input type="text" id="soundName" class="pixel-input" maxlength="8" placeholder="KICK">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>CATEGORY</label>
+                                <select id="soundCategory" class="pixel-select">
+                                    <option value="beat">BEAT</option>
+                                    <option value="melody">MELODY</option>
+                                    <option value="bass">BASS</option>
+                                    <option value="fx">FX</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>ICON</label>
+                                <select id="soundIcon" class="pixel-select">
+                                    <option value="♪">♪</option>
+                                    <option value="♫">♫</option>
+                                    <option value="♩">♩</option>
+                                    <option value="▶">▶</option>
+                                    <option value="◀">◀</option>
+                                    <option value="▲">▲</option>
+                                    <option value="▼">▼</option>
+                                    <option value="■">■</option>
+                                    <option value="★">★</option>
+                                    <option value="●">●</option>
+                                    <option value="↑">↑</option>
+                                    <option value="◆">◆</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>WAVE TYPE</label>
+                            <select id="waveType" class="pixel-select">
+                                <option value="square">SQUARE</option>
+                                <option value="triangle">TRIANGLE</option>
+                                <option value="sawtooth">SAWTOOTH</option>
+                                <option value="sine">SINE</option>
+                            </select>
+                        </div>
+
+                        <!-- パターンエディタ -->
+                        <div class="form-group">
+                            <label>PATTERN (1 BAR = 8 STEPS)</label>
+                            <div class="pattern-editor" id="patternEditor">
+                                <div class="pattern-step" data-step="0">1</div>
+                                <div class="pattern-step" data-step="1">2</div>
+                                <div class="pattern-step" data-step="2">3</div>
+                                <div class="pattern-step" data-step="3">4</div>
+                                <div class="pattern-step" data-step="4">5</div>
+                                <div class="pattern-step" data-step="5">6</div>
+                                <div class="pattern-step" data-step="6">7</div>
+                                <div class="pattern-step" data-step="7">8</div>
+                            </div>
+                        </div>
+
+                        <!-- ノート設定（メロディ/ベース用） -->
+                        <div class="form-group notes-group" id="notesGroup">
+                            <label>NOTES (FOR MELODY/BASS)</label>
+                            <div class="notes-editor">
+                                <select id="note0" class="pixel-select note-select"></select>
+                                <select id="note1" class="pixel-select note-select"></select>
+                                <select id="note2" class="pixel-select note-select"></select>
+                                <select id="note3" class="pixel-select note-select"></select>
+                            </div>
+                        </div>
+
+                        <!-- サウンドパラメータ -->
+                        <div class="form-group params-group" id="paramsGroup">
+                            <label>SOUND TYPE (FOR FX)</label>
+                            <select id="fxType" class="pixel-select">
+                                <option value="custom">CUSTOM</option>
+                                <option value="powerup">POWER UP</option>
+                                <option value="coin">COIN</option>
+                                <option value="jump">JUMP</option>
+                                <option value="laser">LASER</option>
+                                <option value="explosion">EXPLOSION</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>ARP MODE</label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="isArp" class="pixel-checkbox">
+                                <span class="checkbox-text">ENABLE ARP</span>
+                            </label>
+                        </div>
+
+                        <!-- プレビュー & 保存 -->
+                        <div class="form-actions">
+                            <button type="button" class="pixel-btn preview-btn" id="previewBtn">
+                                ▶ PREVIEW
+                            </button>
+                            <button type="submit" class="pixel-btn save-btn">
+                                SAVE
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <!-- 新規パック作成モーダル -->
+        <div class="modal" id="newPackModal">
+            <div class="modal-content">
+                <h3>NEW PACK</h3>
+                <div class="form-group">
+                    <label>PACK NAME</label>
+                    <input type="text" id="newPackName" class="pixel-input" maxlength="16" placeholder="MY PAK">
+                </div>
+                <div class="modal-actions">
+                    <button class="pixel-btn" id="cancelPackBtn">CANCEL</button>
+                    <button class="pixel-btn save-btn" id="createPackBtn">CREATE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- オーバーレイ -->
+        <div class="modal-overlay" id="modalOverlay"></div>
+
+        <!-- トースト -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script src="pack-data.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

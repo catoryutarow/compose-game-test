@@ -13,9 +13,18 @@
     <div class="app">
         <!-- ヘッダー -->
         <header class="header">
-            <div class="title-box">
-                <h1>8BIT MUSIC</h1>
-                <div class="subtitle">- FACTORY -</div>
+            <div class="header-top">
+                <div class="title-box">
+                    <h1>8BIT MUSIC</h1>
+                    <div class="subtitle">- FACTORY -</div>
+                </div>
+                <a href="admin.html" class="admin-link pixel-btn-small">ADMIN</a>
+            </div>
+            <div class="pack-selector">
+                <span class="pack-label">PACK:</span>
+                <select id="packSelect" class="pack-select">
+                    <!-- パックがここに表示される -->
+                </select>
             </div>
         </header>
 
@@ -218,6 +227,7 @@
         <div class="overlay" id="overlay"></div>
     </div>
 
+    <script src="pack-data.js"></script>
     <script src="audio.js"></script>
     <script src="app.js"></script>
 </body>

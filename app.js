@@ -6,13 +6,7 @@ class MusicApp {
         this.isPlaying = false;
         this.pickerOpen = false;
         this.resumeOverlayVisible = false;
-
-        this.soundIcons = {
-            kick: '♪', snare: '♫', hihat: '♩',
-            synth1: '▶', synth2: '◀', piano: '▲',
-            bass1: '▼', bass2: '■',
-            fx1: '★', fx2: '●', vocal: '↑'
-        };
+        this.currentPackId = null;
 
         this.init();
     }
@@ -20,6 +14,7 @@ class MusicApp {
     init() {
         this.bindElements();
         this.createResumeOverlay();
+        this.setupPackSelector();
         this.setupCharacters();
         this.setupPicker();
         this.setupControls();
@@ -30,6 +25,134 @@ class MusicApp {
         document.addEventListener('click', () => audioEngine.resumeContext(), { once: true });
 
         setTimeout(() => this.showToast('TAP CHARACTER TO ADD SOUND!'), 800);
+    }
+
+    // パック選択機能
+    setupPackSelector() {
+        this.packSelect = document.getElementById('packSelect');
+        if (!this.packSelect) return;
+
+        // パック一覧を取得して表示
+        this.populatePackSelector();
+
+        // パック変更イベント
+        this.packSelect.addEventListener('change', (e) => {
+            this.hapticFeedback();
+            this.loadPack(e.target.value);
+        });
+
+        // 初期パックをロード
+        const currentPackId = packManager.currentPackId || 'easy_pak';
+        this.loadPack(currentPackId);
+
+        // ページフォーカス時にパック一覧を更新（管理画面から戻った時用）
+        window.addEventListener('focus', () => {
+            this.refreshPackSelector();
+        });
+
+        // visibilitychange でも更新
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                this.refreshPackSelector();
+            }
+        });
+    }
+
+    refreshPackSelector() {
+        // パック一覧を再読み込み
+        packManager.loadPacks();
+
+        const currentValue = this.packSelect.value;
+        this.populatePackSelector();
+
+        // 現在選択中のパックがまだ存在するか確認
+        if (packManager.getPack(currentValue)) {
+            this.packSelect.value = currentValue;
+        } else {
+            // 存在しなければデフォルトに戻す
+            this.loadPack('easy_pak');
+        }
+
+        // 現在のパックのサウンドを更新
+        if (this.currentPackId) {
+            audioEngine.loadPack(this.currentPackId);
+            this.updateSoundPicker();
+        }
+    }
+
+    populatePackSelector() {
+        const packs = packManager.getAllPacks();
+        this.packSelect.innerHTML = packs.map(pack =>
+            `<option value="${pack.id}">${pack.name}</option>`
+        ).join('');
+
+        // 現在のパックを選択
+        this.packSelect.value = packManager.currentPackId || 'easy_pak';
+    }
+
+    loadPack(packId) {
+        // 再生中なら停止
+        if (this.isPlaying) {
+            this.stop();
+        }
+
+        // スロットをリセット（トーストなし）
+        this.reset(true);
+
+        // AudioEngineにパックをロード
+        if (audioEngine.loadPack(packId)) {
+            this.currentPackId = packId;
+            packManager.setCurrentPack(packId);
+
+            // サウンドピッカーを更新
+            this.updateSoundPicker();
+
+            const pack = packManager.getPack(packId);
+            this.showToast(`${pack.name} LOADED!`);
+        }
+    }
+
+    // サウンドピッカーを動的に更新
+    updateSoundPicker() {
+        const pack = packManager.getPack(this.currentPackId);
+        if (!pack) return;
+
+        const categories = ['beat', 'melody', 'bass', 'fx'];
+        const soundsContainer = document.querySelector('.sounds-container');
+
+        // 各カテゴリのグリッドを更新
+        categories.forEach(category => {
+            const grid = soundsContainer.querySelector(`.sound-grid[data-category="${category}"]`);
+            if (!grid) return;
+
+            // このカテゴリのサウンドをフィルタ
+            const sounds = Object.entries(pack.sounds)
+                .filter(([_, s]) => s.category === category);
+
+            if (sounds.length === 0) {
+                grid.innerHTML = '<div class="empty-category">NO SOUNDS</div>';
+            } else {
+                grid.innerHTML = sounds.map(([soundId, sound]) => `
+                    <button class="pixel-sound-btn" data-sound="${soundId}">
+                        <span class="sound-icon">${sound.icon || '♪'}</span>
+                        <span class="sound-label">${sound.name}</span>
+                    </button>
+                `).join('');
+            }
+        });
+
+        // サウンドボタンのイベントを再設定
+        this.rebindSoundButtons();
+    }
+
+    rebindSoundButtons() {
+        const soundBtns = document.querySelectorAll('.pixel-sound-btn');
+        soundBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.hapticFeedback('heavy');
+                this.selectSound(btn);
+            });
+        });
     }
 
     createResumeOverlay() {
@@ -311,8 +434,12 @@ class MusicApp {
         if (this.selectedSlot === null) return;
 
         const soundName = btn.dataset.sound;
-        const soundIcon = this.soundIcons[soundName] || '♪';
-        const soundLabel = btn.querySelector('.sound-label').textContent;
+
+        // パックからサウンドデータを取得
+        const pack = packManager.getPack(this.currentPackId);
+        const soundData = pack?.sounds[soundName];
+        const soundIcon = soundData?.icon || '♪';
+        const soundLabel = soundData?.name || btn.querySelector('.sound-label').textContent;
 
         audioEngine.previewSound(soundName);
 
@@ -408,7 +535,7 @@ class MusicApp {
         document.querySelectorAll('.character').forEach(c => c.classList.remove('active'));
     }
 
-    reset() {
+    reset(silent = false) {
         this.stop();
         this.slots = {};
         audioEngine.activeSounds = {};
@@ -418,7 +545,9 @@ class MusicApp {
             badge.textContent = '';
         });
 
-        this.showToast('RESET!');
+        if (!silent) {
+            this.showToast('RESET!');
+        }
     }
 
     setupBeatListener() {
