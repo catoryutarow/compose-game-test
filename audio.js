@@ -1,4 +1,4 @@
-// ===== 8bit風 Web Audio Engine =====
+// ===== 8bit風 Web Audio Engine (iOS対応強化版) =====
 class AudioEngine {
     constructor() {
         this.audioContext = null;
@@ -10,6 +10,7 @@ class AudioEngine {
         this.currentBeat = 0;
         this.beatInterval = null;
         this.wasPlayingBeforePause = false;
+        this.needsResume = false;  // 再開が必要かどうか
 
         this.initAudioContext();
         this.createSounds();
@@ -22,64 +23,157 @@ class AudioEngine {
             this.masterGain.connect(this.audioContext.destination);
             this.masterGain.gain.value = 0.7;
 
+            // AudioContextの状態変化を監視
+            this.audioContext.onstatechange = () => {
+                console.log('AudioContext state:', this.audioContext.state);
+
+                if (this.audioContext.state === 'running' && this.needsResume) {
+                    this.needsResume = false;
+                    if (this.wasPlayingBeforePause && this.isPlaying) {
+                        console.log('AudioContext running - restarting scheduler');
+                        this.restartScheduler();
+                    }
+                }
+
+                if (this.audioContext.state === 'suspended') {
+                    console.log('AudioContext suspended');
+                    if (this.isPlaying) {
+                        this.needsResume = true;
+                    }
+                }
+            };
+
             this.setupVisibilityHandler();
+            this.setupInteractionHandler();
+
         } catch (e) {
             console.error('Web Audio API is not supported:', e);
         }
     }
 
     setupVisibilityHandler() {
-        // 画面が非表示になったとき
+        // 画面の表示/非表示を監視
         document.addEventListener('visibilitychange', () => {
+            console.log('Visibility changed:', document.visibilityState);
+
             if (document.visibilityState === 'hidden') {
                 // 再生中だったことを記録
-                this.wasPlayingBeforePause = this.isPlaying;
+                if (this.isPlaying) {
+                    this.wasPlayingBeforePause = true;
+                    this.needsResume = true;
+                    console.log('Marked for resume');
+                }
             } else if (document.visibilityState === 'visible') {
                 // 画面復帰時
-                this.resumeContext();
-
-                // 再生中だった場合、スケジューラーを再起動
-                if (this.wasPlayingBeforePause && this.isPlaying) {
-                    this.restartScheduler();
-                }
+                console.log('Screen visible - attempting resume');
+                this.attemptResume();
             }
         });
 
-        // iOS Safari用
+        // iOS Safari用の追加イベント
         window.addEventListener('pageshow', (e) => {
-            this.resumeContext();
-            if (this.isPlaying) {
-                this.restartScheduler();
+            console.log('Pageshow event');
+            if (this.isPlaying || this.wasPlayingBeforePause) {
+                this.attemptResume();
             }
         });
 
-        // フォーカス復帰時も
         window.addEventListener('focus', () => {
-            this.resumeContext();
-            if (this.isPlaying) {
+            console.log('Window focus');
+            if (this.isPlaying || this.needsResume) {
+                this.attemptResume();
+            }
+        });
+
+        // 定期的に状態をチェック（バックアップ）
+        setInterval(() => {
+            if (this.isPlaying && this.audioContext.state === 'suspended') {
+                console.log('Periodic check: context suspended while playing');
+                this.needsResume = true;
+            }
+        }, 1000);
+    }
+
+    setupInteractionHandler() {
+        // ユーザーインタラクションで強制的に再開
+        const forceResume = async () => {
+            if (this.audioContext.state === 'suspended') {
+                console.log('User interaction - forcing resume');
+                await this.resumeContext();
+            }
+
+            if (this.needsResume && this.isPlaying) {
+                console.log('User interaction - restarting after resume flag');
+                this.needsResume = false;
                 this.restartScheduler();
             }
+        };
+
+        // 複数のイベントで対応
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(event => {
+            document.addEventListener(event, forceResume, { passive: true });
         });
     }
 
-    resumeContext() {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
+    async attemptResume() {
+        console.log('Attempting resume, context state:', this.audioContext.state);
+
+        if (this.audioContext.state === 'suspended') {
+            try {
+                await this.audioContext.resume();
+                console.log('Resume successful, new state:', this.audioContext.state);
+            } catch (e) {
+                console.error('Resume failed:', e);
+                this.needsResume = true;
+                return;
+            }
+        }
+
+        // AudioContextがrunningになったらスケジューラーを再起動
+        if (this.audioContext.state === 'running') {
+            if (this.wasPlayingBeforePause && this.isPlaying) {
+                console.log('Context running - restarting scheduler');
+                this.restartScheduler();
+                this.wasPlayingBeforePause = false;
+            }
+            this.needsResume = false;
         }
     }
 
-    // スケジューラーを再起動
+    async resumeContext() {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            try {
+                await this.audioContext.resume();
+                console.log('Context resumed successfully');
+                return true;
+            } catch (e) {
+                console.error('Failed to resume context:', e);
+                return false;
+            }
+        }
+        return this.audioContext.state === 'running';
+    }
+
     restartScheduler() {
+        console.log('Restarting scheduler');
+
+        // 既存のタイマーをクリア
         if (this.beatInterval) {
             clearTimeout(this.beatInterval);
             this.beatInterval = null;
         }
-        this.scheduleBeat();
+
+        // スケジューラーを再開
+        if (this.isPlaying && this.audioContext.state === 'running') {
+            this.scheduleBeat();
+            console.log('Scheduler restarted');
+        } else {
+            console.log('Cannot restart: isPlaying=', this.isPlaying, 'state=', this.audioContext.state);
+        }
     }
 
     // 8bit風サウンドパターン
     createSounds() {
-        // ビート系（8bit風）
         this.sounds.kick = {
             type: 'beat',
             pattern: [1, 0, 0, 0, 1, 0, 0, 0],
@@ -98,7 +192,6 @@ class AudioEngine {
             create: (time) => this.create8bitHihat(time)
         };
 
-        // メロディ系（8bit風）
         this.sounds.synth1 = {
             type: 'melody',
             pattern: [1, 0, 0, 1, 0, 0, 1, 0],
@@ -120,7 +213,6 @@ class AudioEngine {
             create: (time, note) => this.create8bitArp(time, note)
         };
 
-        // ベース系（8bit風）
         this.sounds.bass1 = {
             type: 'bass',
             pattern: [1, 0, 0, 1, 0, 0, 1, 0],
@@ -135,7 +227,6 @@ class AudioEngine {
             create: (time, note) => this.create8bitBass(time, note)
         };
 
-        // エフェクト系（8bit風）
         this.sounds.fx1 = {
             type: 'fx',
             pattern: [1, 0, 0, 0, 0, 0, 0, 0],
@@ -165,7 +256,6 @@ class AudioEngine {
         return notes[note] || 440;
     }
 
-    // 8bit キック
     create8bitKick(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -184,7 +274,6 @@ class AudioEngine {
         osc.stop(time + 0.15);
     }
 
-    // 8bit スネア（ノイズ風）
     create8bitSnare(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -203,7 +292,6 @@ class AudioEngine {
         osc.start(time);
         osc.stop(time + 0.1);
 
-        // ノイズ風の追加音
         const osc2 = this.audioContext.createOscillator();
         const gain2 = this.audioContext.createGain();
         osc2.type = 'square';
@@ -218,7 +306,6 @@ class AudioEngine {
         osc2.stop(time + 0.08);
     }
 
-    // 8bit ハイハット
     create8bitHihat(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -236,7 +323,6 @@ class AudioEngine {
         osc.stop(time + 0.03);
     }
 
-    // 8bit メロディ
     create8bitMelody(time, note, waveType = 'square') {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -255,7 +341,6 @@ class AudioEngine {
         osc.stop(time + 0.3);
     }
 
-    // 8bit アルペジオ
     create8bitArp(time, note) {
         const freq = this.noteToFreq(note);
         const freqs = [freq, freq * 1.25, freq * 1.5];
@@ -279,7 +364,6 @@ class AudioEngine {
         });
     }
 
-    // 8bit ベース
     create8bitBass(time, note) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -298,7 +382,6 @@ class AudioEngine {
         osc.stop(time + 0.2);
     }
 
-    // 8bit パワーアップ音
     create8bitPowerUp(time) {
         const notes = [400, 500, 600, 800];
         notes.forEach((freq, i) => {
@@ -320,14 +403,13 @@ class AudioEngine {
         });
     }
 
-    // 8bit コイン音
     create8bitCoin(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
 
         osc.type = 'square';
-        osc.frequency.setValueAtTime(988, time);  // B5
-        osc.frequency.setValueAtTime(1319, time + 0.08);  // E6
+        osc.frequency.setValueAtTime(988, time);
+        osc.frequency.setValueAtTime(1319, time + 0.08);
 
         gain.gain.setValueAtTime(0.3, time);
         gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
@@ -339,7 +421,6 @@ class AudioEngine {
         osc.stop(time + 0.2);
     }
 
-    // 8bit ジャンプ音
     create8bitJump(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
@@ -366,17 +447,42 @@ class AudioEngine {
         delete this.activeSounds[slotIndex];
     }
 
-    play() {
-        this.resumeContext();
+    async play() {
+        console.log('Play called');
+
+        // AudioContextを確実に再開
+        await this.resumeContext();
+
         this.isPlaying = true;
         this.wasPlayingBeforePause = true;
+        this.needsResume = false;
         this.currentBeat = 0;
+
+        // AudioContextがrunningになるまで待つ
+        if (this.audioContext.state !== 'running') {
+            console.log('Waiting for context to be running...');
+            await new Promise(resolve => {
+                const checkState = () => {
+                    if (this.audioContext.state === 'running') {
+                        resolve();
+                    } else {
+                        setTimeout(checkState, 50);
+                    }
+                };
+                checkState();
+            });
+        }
+
         this.scheduleBeat();
+        console.log('Play started');
     }
 
     stop() {
+        console.log('Stop called');
         this.isPlaying = false;
         this.wasPlayingBeforePause = false;
+        this.needsResume = false;
+
         if (this.beatInterval) {
             clearTimeout(this.beatInterval);
             this.beatInterval = null;
@@ -388,7 +494,16 @@ class AudioEngine {
     }
 
     scheduleBeat() {
-        if (!this.isPlaying) return;
+        if (!this.isPlaying) {
+            console.log('scheduleBeat: not playing, stopping');
+            return;
+        }
+
+        if (this.audioContext.state !== 'running') {
+            console.log('scheduleBeat: context not running, marking for resume');
+            this.needsResume = true;
+            return;
+        }
 
         const beatDuration = 60 / this.tempo / 2;
         const currentTime = this.audioContext.currentTime;
@@ -419,10 +534,10 @@ class AudioEngine {
         }, beatDuration * 1000);
     }
 
-    previewSound(soundName) {
-        this.resumeContext();
+    async previewSound(soundName) {
+        await this.resumeContext();
         const sound = this.sounds[soundName];
-        if (sound) {
+        if (sound && this.audioContext.state === 'running') {
             const time = this.audioContext.currentTime;
             if (sound.notes) {
                 sound.create(time, sound.notes[0]);
@@ -430,6 +545,16 @@ class AudioEngine {
                 sound.create(time);
             }
         }
+    }
+
+    // 外部から状態を確認するメソッド
+    getState() {
+        return {
+            contextState: this.audioContext?.state,
+            isPlaying: this.isPlaying,
+            needsResume: this.needsResume,
+            wasPlayingBeforePause: this.wasPlayingBeforePause
+        };
     }
 }
 

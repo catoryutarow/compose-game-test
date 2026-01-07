@@ -5,6 +5,7 @@ class MusicApp {
         this.selectedSlot = null;
         this.isPlaying = false;
         this.pickerOpen = false;
+        this.resumeOverlayVisible = false;
 
         this.soundIcons = {
             kick: '♪', snare: '♫', hihat: '♩',
@@ -18,6 +19,7 @@ class MusicApp {
 
     init() {
         this.bindElements();
+        this.createResumeOverlay();
         this.setupCharacters();
         this.setupPicker();
         this.setupControls();
@@ -30,18 +32,136 @@ class MusicApp {
         setTimeout(() => this.showToast('TAP CHARACTER TO ADD SOUND!'), 800);
     }
 
+    createResumeOverlay() {
+        // 「タップして再開」オーバーレイを作成
+        this.resumeOverlay = document.createElement('div');
+        this.resumeOverlay.className = 'resume-overlay';
+        this.resumeOverlay.innerHTML = `
+            <div class="resume-box">
+                <div class="resume-icon">▶</div>
+                <div class="resume-text">TAP TO RESUME</div>
+            </div>
+        `;
+        document.body.appendChild(this.resumeOverlay);
+
+        // タップで再開
+        this.resumeOverlay.addEventListener('click', async () => {
+            await this.handleResume();
+        });
+
+        this.resumeOverlay.addEventListener('touchstart', async (e) => {
+            e.preventDefault();
+            await this.handleResume();
+        });
+
+        // スタイルを追加
+        const style = document.createElement('style');
+        style.textContent = `
+            .resume-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.9);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                cursor: pointer;
+            }
+            .resume-overlay.visible {
+                display: flex;
+            }
+            .resume-box {
+                text-align: center;
+                animation: pulse-resume 1s ease-in-out infinite;
+            }
+            .resume-icon {
+                font-size: 4rem;
+                color: #00ff00;
+                margin-bottom: 16px;
+            }
+            .resume-text {
+                font-family: 'Press Start 2P', monospace;
+                font-size: 0.8rem;
+                color: #00ff00;
+                letter-spacing: 2px;
+            }
+            @keyframes pulse-resume {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.1); opacity: 0.8; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    async handleResume() {
+        console.log('Handle resume called');
+
+        // AudioContextを再開
+        await audioEngine.resumeContext();
+
+        // スケジューラーを再起動
+        if (audioEngine.isPlaying) {
+            audioEngine.restartScheduler();
+        }
+
+        // オーバーレイを非表示
+        this.hideResumeOverlay();
+
+        // 確認音を鳴らす
+        audioEngine.previewSound('fx2');
+    }
+
+    showResumeOverlay() {
+        if (!this.resumeOverlayVisible && this.isPlaying) {
+            this.resumeOverlayVisible = true;
+            this.resumeOverlay.classList.add('visible');
+            console.log('Resume overlay shown');
+        }
+    }
+
+    hideResumeOverlay() {
+        this.resumeOverlayVisible = false;
+        this.resumeOverlay.classList.remove('visible');
+        console.log('Resume overlay hidden');
+    }
+
     setupVisibilityHandler() {
+        // 画面復帰時の処理
         document.addEventListener('visibilitychange', () => {
+            console.log('App: visibility changed to', document.visibilityState);
+
             if (document.visibilityState === 'visible') {
-                audioEngine.resumeContext();
+                // 再生中だった場合、少し待ってから状態を確認
+                if (this.isPlaying) {
+                    setTimeout(() => {
+                        // AudioContextがsuspendedなら再開オーバーレイを表示
+                        const state = audioEngine.getState();
+                        console.log('Audio state check:', state);
+
+                        if (state.contextState === 'suspended' || state.needsResume) {
+                            this.showResumeOverlay();
+                        }
+                    }, 300);
+                }
             }
         });
 
-        document.addEventListener('touchstart', () => {
-            if (this.isPlaying) {
-                audioEngine.resumeContext();
-            }
-        }, { passive: true });
+        // ユーザーインタラクションがあったら再開を試みる
+        ['touchstart', 'click'].forEach(event => {
+            document.addEventListener(event, async () => {
+                if (this.isPlaying && audioEngine.needsResume) {
+                    console.log('User interaction detected, attempting resume');
+                    await audioEngine.resumeContext();
+                    if (audioEngine.audioContext.state === 'running') {
+                        audioEngine.restartScheduler();
+                        this.hideResumeOverlay();
+                    }
+                }
+            }, { passive: true });
+        });
     }
 
     bindElements() {
@@ -247,12 +367,12 @@ class MusicApp {
     }
 
     setupControls() {
-        this.playBtn.addEventListener('click', () => {
+        this.playBtn.addEventListener('click', async () => {
             this.hapticFeedback('heavy');
             if (this.isPlaying) {
                 this.stop();
             } else {
-                this.play();
+                await this.play();
             }
         });
 
@@ -268,14 +388,14 @@ class MusicApp {
         });
     }
 
-    play() {
+    async play() {
         if (Object.keys(this.slots).length === 0) {
             this.showToast('ADD SOUNDS FIRST!');
             return;
         }
 
         this.isPlaying = true;
-        audioEngine.play();
+        await audioEngine.play();
         this.playBtn.classList.add('playing');
     }
 
@@ -283,6 +403,7 @@ class MusicApp {
         this.isPlaying = false;
         audioEngine.stop();
         this.playBtn.classList.remove('playing');
+        this.hideResumeOverlay();
 
         document.querySelectorAll('.character').forEach(c => c.classList.remove('active'));
     }
