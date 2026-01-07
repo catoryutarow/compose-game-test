@@ -21,9 +21,29 @@ class AudioEngine {
             this.masterGain = this.audioContext.createGain();
             this.masterGain.connect(this.audioContext.destination);
             this.masterGain.gain.value = 0.7;
+
+            // 画面復帰時にAudioContextを再開
+            this.setupVisibilityHandler();
         } catch (e) {
             console.error('Web Audio API is not supported:', e);
         }
+    }
+
+    setupVisibilityHandler() {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                this.resumeContext();
+                // 再生中だった場合、再開
+                if (this.isPlaying) {
+                    this.resumeContext();
+                }
+            }
+        });
+
+        // iOSのためのページ表示イベント
+        window.addEventListener('pageshow', () => {
+            this.resumeContext();
+        });
     }
 
     resumeContext() {

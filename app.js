@@ -15,6 +15,7 @@ class MusicApp {
         this.setupPicker();
         this.setupControls();
         this.setupBeatListener();
+        this.setupVisibilityHandler();
 
         // 初回タップでAudioContextを有効化
         document.addEventListener('touchstart', () => audioEngine.resumeContext(), { once: true });
@@ -22,6 +23,23 @@ class MusicApp {
 
         // ウェルカムメッセージ
         setTimeout(() => this.showToast('キャラをタップしてサウンドを選ぼう！'), 800);
+    }
+
+    // 画面復帰時の処理
+    setupVisibilityHandler() {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                // AudioContextを再開
+                audioEngine.resumeContext();
+            }
+        });
+
+        // タッチで再開（iOS Safari対策）
+        document.addEventListener('touchstart', () => {
+            if (this.isPlaying) {
+                audioEngine.resumeContext();
+            }
+        }, { passive: true });
     }
 
     bindElements() {
