@@ -2,204 +2,206 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🎵 おんがくファクトリー 🎵</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎵 おんがくファクトリー 🎵</h1>
-            <p class="subtitle">キャラクターにサウンドをドラッグして、オリジナル曲を作ろう！</p>
+    <div class="app">
+        <!-- ヘッダー -->
+        <header class="header">
+            <h1>🎵 おんがくファクトリー</h1>
         </header>
 
-        <div class="controls">
-            <button id="playBtn" class="control-btn">
-                <span class="btn-icon">▶</span>
-                <span class="btn-text">スタート</span>
-            </button>
-            <button id="stopBtn" class="control-btn">
-                <span class="btn-icon">■</span>
-                <span class="btn-text">ストップ</span>
-            </button>
-            <button id="resetBtn" class="control-btn">
-                <span class="btn-icon">🔄</span>
-                <span class="btn-text">リセット</span>
-            </button>
-            <div class="tempo-control">
-                <label for="tempo">テンポ: <span id="tempoValue">120</span> BPM</label>
-                <input type="range" id="tempo" min="60" max="180" value="120">
-            </div>
-        </div>
-
-        <div class="stage">
-            <div class="characters-container">
+        <!-- メインステージ -->
+        <main class="main-stage">
+            <div class="characters-grid">
                 <div class="character" data-slot="0">
                     <div class="character-body">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="0"></div>
                     </div>
-                    <div class="sound-slot" data-slot="0">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">ピコちゃん</div>
+                    <span class="character-name">ピコ</span>
                 </div>
                 <div class="character" data-slot="1">
                     <div class="character-body color-2">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="1"></div>
                     </div>
-                    <div class="sound-slot" data-slot="1">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">ポコくん</div>
+                    <span class="character-name">ポコ</span>
                 </div>
                 <div class="character" data-slot="2">
                     <div class="character-body color-3">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="2"></div>
                     </div>
-                    <div class="sound-slot" data-slot="2">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">ルンルン</div>
+                    <span class="character-name">ルン</span>
                 </div>
                 <div class="character" data-slot="3">
                     <div class="character-body color-4">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="3"></div>
                     </div>
-                    <div class="sound-slot" data-slot="3">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">ドンドン</div>
+                    <span class="character-name">ドン</span>
                 </div>
                 <div class="character" data-slot="4">
                     <div class="character-body color-5">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="4"></div>
                     </div>
-                    <div class="sound-slot" data-slot="4">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">メロディ</div>
+                    <span class="character-name">メロ</span>
                 </div>
                 <div class="character" data-slot="5">
                     <div class="character-body color-6">
                         <div class="character-face">
                             <div class="eyes">
-                                <div class="eye left"></div>
-                                <div class="eye right"></div>
+                                <div class="eye"></div>
+                                <div class="eye"></div>
                             </div>
                             <div class="mouth"></div>
                         </div>
+                        <div class="sound-badge" data-slot="5"></div>
                     </div>
-                    <div class="sound-slot" data-slot="5">
-                        <span class="slot-hint">ここにドロップ</span>
-                    </div>
-                    <div class="character-name">ハーモニー</div>
+                    <span class="character-name">ハモ</span>
                 </div>
+            </div>
+
+            <!-- ビートインジケーター -->
+            <div class="beat-indicator">
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+                <div class="beat-dot"></div>
+            </div>
+        </main>
+
+        <!-- コントロールバー -->
+        <div class="control-bar">
+            <button id="playBtn" class="play-btn">
+                <span class="play-icon">▶</span>
+            </button>
+            <div class="tempo-slider">
+                <span class="tempo-label">🎵</span>
+                <input type="range" id="tempo" min="60" max="180" value="120">
+                <span id="tempoValue" class="tempo-value">120</span>
+            </div>
+            <button id="resetBtn" class="reset-btn">🔄</button>
+        </div>
+
+        <!-- サウンドピッカー（ボトムシート） -->
+        <div class="sound-picker" id="soundPicker">
+            <div class="picker-handle" id="pickerHandle">
+                <div class="handle-bar"></div>
+                <span class="picker-title">サウンドを選ぼう</span>
+            </div>
+            <div class="picker-content">
+                <!-- カテゴリタブ -->
+                <div class="category-tabs">
+                    <button class="tab active" data-category="beat">🥁</button>
+                    <button class="tab" data-category="melody">🎹</button>
+                    <button class="tab" data-category="bass">🎸</button>
+                    <button class="tab" data-category="fx">✨</button>
+                </div>
+
+                <!-- サウンドグリッド -->
+                <div class="sounds-container">
+                    <div class="sound-grid" data-category="beat">
+                        <button class="sound-btn" data-sound="kick">
+                            <span class="sound-emoji">🔊</span>
+                            <span class="sound-label">キック</span>
+                        </button>
+                        <button class="sound-btn" data-sound="snare">
+                            <span class="sound-emoji">🥁</span>
+                            <span class="sound-label">スネア</span>
+                        </button>
+                        <button class="sound-btn" data-sound="hihat">
+                            <span class="sound-emoji">🎪</span>
+                            <span class="sound-label">ハイハット</span>
+                        </button>
+                    </div>
+                    <div class="sound-grid hidden" data-category="melody">
+                        <button class="sound-btn" data-sound="synth1">
+                            <span class="sound-emoji">🎹</span>
+                            <span class="sound-label">シンセ1</span>
+                        </button>
+                        <button class="sound-btn" data-sound="synth2">
+                            <span class="sound-emoji">🎼</span>
+                            <span class="sound-label">シンセ2</span>
+                        </button>
+                        <button class="sound-btn" data-sound="piano">
+                            <span class="sound-emoji">🎵</span>
+                            <span class="sound-label">ピアノ</span>
+                        </button>
+                    </div>
+                    <div class="sound-grid hidden" data-category="bass">
+                        <button class="sound-btn" data-sound="bass1">
+                            <span class="sound-emoji">🎸</span>
+                            <span class="sound-label">ベース1</span>
+                        </button>
+                        <button class="sound-btn" data-sound="bass2">
+                            <span class="sound-emoji">📻</span>
+                            <span class="sound-label">ベース2</span>
+                        </button>
+                    </div>
+                    <div class="sound-grid hidden" data-category="fx">
+                        <button class="sound-btn" data-sound="fx1">
+                            <span class="sound-emoji">✨</span>
+                            <span class="sound-label">キラキラ</span>
+                        </button>
+                        <button class="sound-btn" data-sound="fx2">
+                            <span class="sound-emoji">🌟</span>
+                            <span class="sound-label">シュワー</span>
+                        </button>
+                        <button class="sound-btn" data-sound="vocal">
+                            <span class="sound-emoji">🎤</span>
+                            <span class="sound-label">ボイス</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 削除ボタン -->
+                <button class="remove-sound-btn" id="removeSoundBtn">
+                    <span>🗑️ サウンドを外す</span>
+                </button>
             </div>
         </div>
 
-        <div class="sound-library">
-            <h2>🎶 サウンドライブラリ 🎶</h2>
-            <div class="sound-categories">
-                <div class="category">
-                    <h3>🥁 ビート</h3>
-                    <div class="sounds">
-                        <div class="sound-item" draggable="true" data-sound="kick" data-category="beat">
-                            <span class="sound-icon">🔊</span>
-                            <span class="sound-name">キック</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="snare" data-category="beat">
-                            <span class="sound-icon">🥁</span>
-                            <span class="sound-name">スネア</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="hihat" data-category="beat">
-                            <span class="sound-icon">🎪</span>
-                            <span class="sound-name">ハイハット</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="category">
-                    <h3>🎹 メロディ</h3>
-                    <div class="sounds">
-                        <div class="sound-item" draggable="true" data-sound="synth1" data-category="melody">
-                            <span class="sound-icon">🎹</span>
-                            <span class="sound-name">シンセ1</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="synth2" data-category="melody">
-                            <span class="sound-icon">🎼</span>
-                            <span class="sound-name">シンセ2</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="piano" data-category="melody">
-                            <span class="sound-icon">🎵</span>
-                            <span class="sound-name">ピアノ</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="category">
-                    <h3>🎸 ベース</h3>
-                    <div class="sounds">
-                        <div class="sound-item" draggable="true" data-sound="bass1" data-category="bass">
-                            <span class="sound-icon">🎸</span>
-                            <span class="sound-name">ベース1</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="bass2" data-category="bass">
-                            <span class="sound-icon">📻</span>
-                            <span class="sound-name">ベース2</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="category">
-                    <h3>✨ エフェクト</h3>
-                    <div class="sounds">
-                        <div class="sound-item" draggable="true" data-sound="fx1" data-category="fx">
-                            <span class="sound-icon">✨</span>
-                            <span class="sound-name">キラキラ</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="fx2" data-category="fx">
-                            <span class="sound-icon">🌟</span>
-                            <span class="sound-name">シュワー</span>
-                        </div>
-                        <div class="sound-item" draggable="true" data-sound="vocal" data-category="fx">
-                            <span class="sound-icon">🎤</span>
-                            <span class="sound-name">ボイス</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <footer>
-            <p>🌈 おんがくファクトリーで楽しく作曲しよう！ 🌈</p>
-        </footer>
+        <!-- オーバーレイ -->
+        <div class="overlay" id="overlay"></div>
     </div>
 
     <script src="audio.js"></script>

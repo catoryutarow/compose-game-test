@@ -1,394 +1,394 @@
-// メインアプリケーション
+// ===== Music App =====
 class MusicApp {
     constructor() {
-        this.slots = {};
+        this.slots = {};          // { slotIndex: { sound, emoji, name } }
+        this.selectedSlot = null; // 現在選択中のキャラクター
         this.isPlaying = false;
-        this.draggedSound = null;
+        this.pickerOpen = false;
 
         this.init();
     }
 
     init() {
+        this.bindElements();
+        this.setupCharacters();
+        this.setupPicker();
         this.setupControls();
-        this.setupDragAndDrop();
         this.setupBeatListener();
-        this.setupSoundPreviews();
+
+        // 初回タップでAudioContextを有効化
+        document.addEventListener('touchstart', () => audioEngine.resumeContext(), { once: true });
+        document.addEventListener('click', () => audioEngine.resumeContext(), { once: true });
+
+        // ウェルカムメッセージ
+        setTimeout(() => this.showToast('キャラをタップしてサウンドを選ぼう！'), 800);
     }
 
-    // コントロールボタンのセットアップ
-    setupControls() {
-        const playBtn = document.getElementById('playBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const tempoSlider = document.getElementById('tempo');
-        const tempoValue = document.getElementById('tempoValue');
+    bindElements() {
+        this.soundPicker = document.getElementById('soundPicker');
+        this.overlay = document.getElementById('overlay');
+        this.playBtn = document.getElementById('playBtn');
+        this.resetBtn = document.getElementById('resetBtn');
+        this.tempoSlider = document.getElementById('tempo');
+        this.tempoValue = document.getElementById('tempoValue');
+        this.removeSoundBtn = document.getElementById('removeSoundBtn');
+    }
 
-        playBtn.addEventListener('click', () => {
-            if (!this.isPlaying) {
-                this.play();
+    // ===== キャラクター =====
+    setupCharacters() {
+        const characters = document.querySelectorAll('.character');
+
+        characters.forEach(char => {
+            char.addEventListener('click', (e) => {
+                this.hapticFeedback();
+                this.selectCharacter(char);
+            });
+
+            // タッチフィードバック
+            char.addEventListener('touchstart', () => {
+                char.style.transform = 'scale(0.95)';
+            });
+
+            char.addEventListener('touchend', () => {
+                char.style.transform = '';
+            });
+        });
+    }
+
+    selectCharacter(char) {
+        const slotIndex = char.dataset.slot;
+
+        // 前の選択を解除
+        document.querySelectorAll('.character').forEach(c => c.classList.remove('selected'));
+
+        // 新しい選択
+        char.classList.add('selected');
+        this.selectedSlot = slotIndex;
+
+        // サウンドピッカーを開く
+        this.openPicker();
+
+        // 選択中のサウンドをハイライト
+        this.updatePickerSelection();
+    }
+
+    // ===== サウンドピッカー（ボトムシート） =====
+    setupPicker() {
+        const pickerHandle = document.getElementById('pickerHandle');
+        const tabs = document.querySelectorAll('.category-tabs .tab');
+        const soundBtns = document.querySelectorAll('.sound-btn');
+
+        // ハンドルでの開閉
+        pickerHandle.addEventListener('click', () => {
+            if (this.pickerOpen) {
+                this.closePicker();
             }
         });
 
-        stopBtn.addEventListener('click', () => {
-            this.stop();
+        // オーバーレイクリックで閉じる
+        this.overlay.addEventListener('click', () => {
+            this.closePicker();
         });
 
-        resetBtn.addEventListener('click', () => {
-            this.reset();
+        // カテゴリタブ
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.hapticFeedback();
+                this.switchCategory(tab.dataset.category);
+            });
         });
 
-        tempoSlider.addEventListener('input', (e) => {
-            const tempo = parseInt(e.target.value);
-            tempoValue.textContent = tempo;
-            audioEngine.setTempo(tempo);
+        // サウンドボタン
+        soundBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.hapticFeedback('heavy');
+                this.selectSound(btn);
+            });
+        });
+
+        // 削除ボタン
+        this.removeSoundBtn.addEventListener('click', () => {
+            this.hapticFeedback();
+            this.removeCurrentSound();
+        });
+
+        // スワイプで閉じる
+        this.setupSwipeGesture();
+    }
+
+    setupSwipeGesture() {
+        let startY = 0;
+        let currentY = 0;
+
+        this.soundPicker.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+        }, { passive: true });
+
+        this.soundPicker.addEventListener('touchmove', (e) => {
+            currentY = e.touches[0].clientY;
+            const diff = currentY - startY;
+
+            if (diff > 0 && this.pickerOpen) {
+                this.soundPicker.style.transform = `translateY(${diff}px)`;
+            }
+        }, { passive: true });
+
+        this.soundPicker.addEventListener('touchend', () => {
+            const diff = currentY - startY;
+
+            if (diff > 80 && this.pickerOpen) {
+                this.closePicker();
+            } else {
+                this.soundPicker.style.transform = '';
+            }
+
+            startY = 0;
+            currentY = 0;
         });
     }
 
-    // 再生開始
-    play() {
-        if (Object.keys(this.slots).length === 0) {
-            this.showMessage('サウンドをキャラクターにドラッグしてね！');
-            return;
+    openPicker() {
+        this.pickerOpen = true;
+        this.soundPicker.classList.add('open');
+        this.overlay.classList.add('visible');
+        this.soundPicker.style.transform = '';
+    }
+
+    closePicker() {
+        this.pickerOpen = false;
+        this.soundPicker.classList.remove('open');
+        this.overlay.classList.remove('visible');
+        this.soundPicker.style.transform = '';
+
+        // 選択解除
+        document.querySelectorAll('.character').forEach(c => c.classList.remove('selected'));
+        this.selectedSlot = null;
+    }
+
+    switchCategory(category) {
+        // タブの切り替え
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab[data-category="${category}"]`).classList.add('active');
+
+        // グリッドの切り替え
+        document.querySelectorAll('.sound-grid').forEach(g => g.classList.add('hidden'));
+        document.querySelector(`.sound-grid[data-category="${category}"]`).classList.remove('hidden');
+    }
+
+    updatePickerSelection() {
+        // 全ての選択状態をリセット
+        document.querySelectorAll('.sound-btn').forEach(btn => btn.classList.remove('selected'));
+
+        // 現在のスロットにサウンドがあれば選択状態に
+        if (this.selectedSlot !== null && this.slots[this.selectedSlot]) {
+            const currentSound = this.slots[this.selectedSlot].sound;
+            const btn = document.querySelector(`.sound-btn[data-sound="${currentSound}"]`);
+            if (btn) {
+                btn.classList.add('selected');
+                // そのカテゴリに切り替え
+                const category = btn.closest('.sound-grid').dataset.category;
+                this.switchCategory(category);
+            }
+            // 削除ボタンを表示
+            this.removeSoundBtn.classList.add('visible');
+        } else {
+            this.removeSoundBtn.classList.remove('visible');
         }
-
-        this.isPlaying = true;
-        audioEngine.play();
-
-        document.getElementById('playBtn').classList.add('active');
-        document.getElementById('playBtn').querySelector('.btn-text').textContent = '再生中...';
     }
 
-    // 停止
-    stop() {
-        this.isPlaying = false;
-        audioEngine.stop();
+    selectSound(btn) {
+        if (this.selectedSlot === null) return;
 
-        document.getElementById('playBtn').classList.remove('active');
-        document.getElementById('playBtn').querySelector('.btn-text').textContent = 'スタート';
+        const soundName = btn.dataset.sound;
+        const soundEmoji = btn.querySelector('.sound-emoji').textContent;
+        const soundLabel = btn.querySelector('.sound-label').textContent;
 
-        // キャラクターのアニメーションを停止
-        document.querySelectorAll('.character').forEach(char => {
-            char.classList.remove('active');
+        // サウンドをプレビュー
+        audioEngine.previewSound(soundName);
+
+        // スロットにサウンドを割り当て
+        this.assignSound(this.selectedSlot, {
+            sound: soundName,
+            emoji: soundEmoji,
+            name: soundLabel
         });
+
+        // UIを更新
+        this.updatePickerSelection();
+
+        // ピッカーを閉じる
+        setTimeout(() => this.closePicker(), 150);
     }
 
-    // リセット
-    reset() {
-        this.stop();
-        this.slots = {};
-        audioEngine.activeSounds = {};
-
-        // スロットのUIをリセット
-        document.querySelectorAll('.sound-slot').forEach(slot => {
-            slot.classList.remove('has-sound');
-            slot.innerHTML = '<span class="slot-hint">ここにドロップ</span>';
-        });
-
-        this.showMessage('リセットしました！');
-    }
-
-    // ドラッグ＆ドロップのセットアップ
-    setupDragAndDrop() {
-        const soundItems = document.querySelectorAll('.sound-item');
-        const slots = document.querySelectorAll('.sound-slot');
-
-        // サウンドアイテムのドラッグイベント
-        soundItems.forEach(item => {
-            item.addEventListener('dragstart', (e) => {
-                this.draggedSound = {
-                    sound: item.dataset.sound,
-                    category: item.dataset.category,
-                    icon: item.querySelector('.sound-icon').textContent,
-                    name: item.querySelector('.sound-name').textContent
-                };
-                item.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'copy';
-            });
-
-            item.addEventListener('dragend', (e) => {
-                item.classList.remove('dragging');
-                this.draggedSound = null;
-            });
-        });
-
-        // スロットのドロップイベント
-        slots.forEach(slot => {
-            slot.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-                slot.classList.add('drag-over');
-            });
-
-            slot.addEventListener('dragleave', (e) => {
-                slot.classList.remove('drag-over');
-            });
-
-            slot.addEventListener('drop', (e) => {
-                e.preventDefault();
-                slot.classList.remove('drag-over');
-
-                if (this.draggedSound) {
-                    this.assignSoundToSlot(slot, this.draggedSound);
-                }
-            });
-        });
-
-        // タッチデバイス対応
-        this.setupTouchDragAndDrop();
-    }
-
-    // タッチデバイス用のドラッグ＆ドロップ
-    setupTouchDragAndDrop() {
-        const soundItems = document.querySelectorAll('.sound-item');
-        let touchedItem = null;
-        let clone = null;
-
-        soundItems.forEach(item => {
-            item.addEventListener('touchstart', (e) => {
-                touchedItem = item;
-                this.draggedSound = {
-                    sound: item.dataset.sound,
-                    category: item.dataset.category,
-                    icon: item.querySelector('.sound-icon').textContent,
-                    name: item.querySelector('.sound-name').textContent
-                };
-
-                // クローン作成
-                clone = item.cloneNode(true);
-                clone.style.position = 'fixed';
-                clone.style.pointerEvents = 'none';
-                clone.style.opacity = '0.8';
-                clone.style.zIndex = '1000';
-                clone.style.transform = 'scale(1.1)';
-                document.body.appendChild(clone);
-            });
-
-            item.addEventListener('touchmove', (e) => {
-                if (clone) {
-                    const touch = e.touches[0];
-                    clone.style.left = (touch.clientX - 40) + 'px';
-                    clone.style.top = (touch.clientY - 40) + 'px';
-
-                    // ドロップターゲットのハイライト
-                    const slots = document.querySelectorAll('.sound-slot');
-                    slots.forEach(slot => {
-                        const rect = slot.getBoundingClientRect();
-                        if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-                            touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-                            slot.classList.add('drag-over');
-                        } else {
-                            slot.classList.remove('drag-over');
-                        }
-                    });
-                }
-                e.preventDefault();
-            });
-
-            item.addEventListener('touchend', (e) => {
-                if (clone) {
-                    const touch = e.changedTouches[0];
-                    const slots = document.querySelectorAll('.sound-slot');
-
-                    slots.forEach(slot => {
-                        const rect = slot.getBoundingClientRect();
-                        if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-                            touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-                            this.assignSoundToSlot(slot, this.draggedSound);
-                        }
-                        slot.classList.remove('drag-over');
-                    });
-
-                    document.body.removeChild(clone);
-                    clone = null;
-                }
-                touchedItem = null;
-                this.draggedSound = null;
-            });
-        });
-    }
-
-    // サウンドをスロットに割り当て
-    assignSoundToSlot(slot, soundData) {
-        const slotIndex = slot.dataset.slot;
-
-        // 既存のサウンドを削除
-        if (this.slots[slotIndex]) {
-            audioEngine.removeSoundFromSlot(slotIndex);
-        }
-
-        // 新しいサウンドを追加
+    assignSound(slotIndex, soundData) {
+        // データを保存
         this.slots[slotIndex] = soundData;
         audioEngine.addSoundToSlot(slotIndex, soundData.sound);
 
-        // UIを更新
-        slot.classList.add('has-sound');
-        slot.innerHTML = `
-            <span class="slot-sound-icon">${soundData.icon}</span>
-            <button class="remove-sound" data-slot="${slotIndex}">×</button>
-        `;
+        // バッジを更新
+        const badge = document.querySelector(`.sound-badge[data-slot="${slotIndex}"]`);
+        if (badge) {
+            badge.textContent = soundData.emoji;
+            badge.classList.add('visible');
 
-        // 削除ボタンのイベント
-        slot.querySelector('.remove-sound').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.removeSoundFromSlot(slotIndex);
-        });
+            // ポップアニメーション
+            badge.style.animation = 'none';
+            badge.offsetHeight; // Reflow
+            badge.style.animation = '';
+        }
 
-        // プレビュー再生
-        audioEngine.previewSound(soundData.sound);
-
-        // キャラクターをハイライト
-        const character = document.querySelector(`.character[data-slot="${slotIndex}"]`);
-        if (character) {
-            character.classList.add('highlight');
-            setTimeout(() => character.classList.remove('highlight'), 300);
+        // キャラクターにパルス効果
+        const char = document.querySelector(`.character[data-slot="${slotIndex}"]`);
+        if (char) {
+            char.style.transform = 'scale(1.1)';
+            setTimeout(() => char.style.transform = '', 200);
         }
     }
 
-    // スロットからサウンドを削除
-    removeSoundFromSlot(slotIndex) {
-        delete this.slots[slotIndex];
-        audioEngine.removeSoundFromSlot(slotIndex);
+    removeCurrentSound() {
+        if (this.selectedSlot === null) return;
 
-        const slot = document.querySelector(`.sound-slot[data-slot="${slotIndex}"]`);
-        if (slot) {
-            slot.classList.remove('has-sound');
-            slot.innerHTML = '<span class="slot-hint">ここにドロップ</span>';
+        // スロットからサウンドを削除
+        delete this.slots[this.selectedSlot];
+        audioEngine.removeSoundFromSlot(this.selectedSlot);
+
+        // バッジを非表示
+        const badge = document.querySelector(`.sound-badge[data-slot="${this.selectedSlot}"]`);
+        if (badge) {
+            badge.classList.remove('visible');
+            badge.textContent = '';
         }
 
-        // 全スロットが空になったら停止
+        // UI更新
+        this.updatePickerSelection();
+        this.closePicker();
+
+        // 全スロットが空なら停止
         if (Object.keys(this.slots).length === 0 && this.isPlaying) {
             this.stop();
         }
     }
 
-    // ビートリスナーのセットアップ
+    // ===== コントロール =====
+    setupControls() {
+        this.playBtn.addEventListener('click', () => {
+            this.hapticFeedback('heavy');
+            if (this.isPlaying) {
+                this.stop();
+            } else {
+                this.play();
+            }
+        });
+
+        this.resetBtn.addEventListener('click', () => {
+            this.hapticFeedback();
+            this.reset();
+        });
+
+        this.tempoSlider.addEventListener('input', (e) => {
+            const tempo = parseInt(e.target.value);
+            this.tempoValue.textContent = tempo;
+            audioEngine.setTempo(tempo);
+        });
+    }
+
+    play() {
+        if (Object.keys(this.slots).length === 0) {
+            this.showToast('まずキャラにサウンドを設定してね！');
+            return;
+        }
+
+        this.isPlaying = true;
+        audioEngine.play();
+        this.playBtn.classList.add('playing');
+        this.playBtn.querySelector('.play-icon').textContent = '■';
+    }
+
+    stop() {
+        this.isPlaying = false;
+        audioEngine.stop();
+        this.playBtn.classList.remove('playing');
+        this.playBtn.querySelector('.play-icon').textContent = '▶';
+
+        // キャラクターのアニメーションを停止
+        document.querySelectorAll('.character').forEach(c => c.classList.remove('active'));
+    }
+
+    reset() {
+        this.stop();
+        this.slots = {};
+        audioEngine.activeSounds = {};
+
+        // バッジをリセット
+        document.querySelectorAll('.sound-badge').forEach(badge => {
+            badge.classList.remove('visible');
+            badge.textContent = '';
+        });
+
+        this.showToast('リセットしました！');
+    }
+
+    // ===== ビートリスナー =====
     setupBeatListener() {
+        const beatDots = document.querySelectorAll('.beat-dot');
+
         window.addEventListener('beat', (e) => {
             const { beat, activeSounds } = e.detail;
 
-            // ビートインジケーターを更新（もし追加されていれば）
-            document.querySelectorAll('.beat-dot').forEach((dot, i) => {
+            // ビートインジケーター
+            beatDots.forEach((dot, i) => {
                 dot.classList.toggle('active', i === beat);
             });
 
             // アクティブなキャラクターをアニメーション
-            Object.entries(activeSounds).forEach(([slotIndex, soundName]) => {
-                const character = document.querySelector(`.character[data-slot="${slotIndex}"]`);
-                const sound = audioEngine.sounds[soundName];
-
-                if (character && sound && sound.pattern[beat]) {
-                    character.classList.add('active');
-                    setTimeout(() => {
-                        // 次のビートまでactiveを維持
-                    }, 100);
-                }
-            });
-
-            // ビートごとにアクティブなキャラクターを更新
             document.querySelectorAll('.character').forEach(char => {
                 const slotIndex = char.dataset.slot;
-                if (!activeSounds[slotIndex]) {
+                const soundName = activeSounds[slotIndex];
+
+                if (soundName) {
+                    const sound = audioEngine.sounds[soundName];
+                    if (sound && sound.pattern[beat]) {
+                        char.classList.add('active');
+                    }
+                } else {
                     char.classList.remove('active');
                 }
             });
         });
     }
 
-    // サウンドプレビューのセットアップ
-    setupSoundPreviews() {
-        document.querySelectorAll('.sound-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const soundName = item.dataset.sound;
-                audioEngine.previewSound(soundName);
-
-                // クリックアニメーション
-                item.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    item.style.transform = '';
-                }, 100);
-            });
-        });
+    // ===== ユーティリティ =====
+    hapticFeedback(intensity = 'light') {
+        if ('vibrate' in navigator) {
+            const duration = intensity === 'heavy' ? 30 : 10;
+            navigator.vibrate(duration);
+        }
     }
 
-    // メッセージ表示
-    showMessage(text) {
-        // 既存のメッセージを削除
-        const existing = document.querySelector('.message-toast');
-        if (existing) {
-            existing.remove();
-        }
+    showToast(message) {
+        // 既存のトーストを削除
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
 
         const toast = document.createElement('div');
-        toast.className = 'message-toast';
-        toast.textContent = text;
-        toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 1.1rem;
-            z-index: 1000;
-            animation: fadeInOut 2s ease-in-out forwards;
-        `;
-
-        // アニメーションスタイルを追加
-        if (!document.querySelector('#toast-animation')) {
-            const style = document.createElement('style');
-            style.id = 'toast-animation';
-            style.textContent = `
-                @keyframes fadeInOut {
-                    0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-                    20% { opacity: 1; transform: translateX(-50%) translateY(0); }
-                    80% { opacity: 1; transform: translateX(-50%) translateY(0); }
-                    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
+        toast.className = 'toast';
+        toast.textContent = message;
         document.body.appendChild(toast);
 
+        // 表示アニメーション
+        requestAnimationFrame(() => {
+            toast.classList.add('visible');
+        });
+
+        // 自動で消える
         setTimeout(() => {
-            toast.remove();
+            toast.classList.remove('visible');
+            setTimeout(() => toast.remove(), 300);
         }, 2000);
     }
 }
 
-// ビートインジケーターを追加
-function addBeatIndicator() {
-    const stage = document.querySelector('.stage');
-    const indicator = document.createElement('div');
-    indicator.className = 'beat-indicator';
-
-    for (let i = 0; i < 8; i++) {
-        const dot = document.createElement('div');
-        dot.className = 'beat-dot';
-        indicator.appendChild(dot);
-    }
-
-    stage.appendChild(indicator);
-}
-
-// アプリ起動
+// ===== アプリ起動 =====
 document.addEventListener('DOMContentLoaded', () => {
-    addBeatIndicator();
-    const app = new MusicApp();
-
-    // ウェルカムメッセージ
-    setTimeout(() => {
-        app.showMessage('🎵 サウンドをキャラクターにドラッグして音楽を作ろう！ 🎵');
-    }, 500);
+    window.app = new MusicApp();
 });
-
-// Audio Context のユーザー操作での初期化（ブラウザポリシー対応）
-document.addEventListener('click', () => {
-    audioEngine.resumeContext();
-}, { once: true });
-
-document.addEventListener('touchstart', () => {
-    audioEngine.resumeContext();
-}, { once: true });
