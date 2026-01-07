@@ -1,4 +1,4 @@
-// Web Audio API を使った音楽システム
+// ===== 8bit風 Web Audio Engine =====
 class AudioEngine {
     constructor() {
         this.audioContext = null;
@@ -9,7 +9,7 @@ class AudioEngine {
         this.tempo = 120;
         this.currentBeat = 0;
         this.beatInterval = null;
-        this.beatsPerMeasure = 4;
+        this.wasPlayingBeforePause = false;
 
         this.initAudioContext();
         this.createSounds();
@@ -22,7 +22,6 @@ class AudioEngine {
             this.masterGain.connect(this.audioContext.destination);
             this.masterGain.gain.value = 0.7;
 
-            // 画面復帰時にAudioContextを再開
             this.setupVisibilityHandler();
         } catch (e) {
             console.error('Web Audio API is not supported:', e);
@@ -30,19 +29,36 @@ class AudioEngine {
     }
 
     setupVisibilityHandler() {
+        // 画面が非表示になったとき
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'hidden') {
+                // 再生中だったことを記録
+                this.wasPlayingBeforePause = this.isPlaying;
+            } else if (document.visibilityState === 'visible') {
+                // 画面復帰時
                 this.resumeContext();
-                // 再生中だった場合、再開
-                if (this.isPlaying) {
-                    this.resumeContext();
+
+                // 再生中だった場合、スケジューラーを再起動
+                if (this.wasPlayingBeforePause && this.isPlaying) {
+                    this.restartScheduler();
                 }
             }
         });
 
-        // iOSのためのページ表示イベント
-        window.addEventListener('pageshow', () => {
+        // iOS Safari用
+        window.addEventListener('pageshow', (e) => {
             this.resumeContext();
+            if (this.isPlaying) {
+                this.restartScheduler();
+            }
+        });
+
+        // フォーカス復帰時も
+        window.addEventListener('focus', () => {
+            this.resumeContext();
+            if (this.isPlaying) {
+                this.restartScheduler();
+            }
         });
     }
 
@@ -52,85 +68,93 @@ class AudioEngine {
         }
     }
 
-    // 各サウンドパターンの定義
+    // スケジューラーを再起動
+    restartScheduler() {
+        if (this.beatInterval) {
+            clearTimeout(this.beatInterval);
+            this.beatInterval = null;
+        }
+        this.scheduleBeat();
+    }
+
+    // 8bit風サウンドパターン
     createSounds() {
-        // ビート系
+        // ビート系（8bit風）
         this.sounds.kick = {
             type: 'beat',
             pattern: [1, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.createKick(time)
+            create: (time) => this.create8bitKick(time)
         };
 
         this.sounds.snare = {
             type: 'beat',
             pattern: [0, 0, 1, 0, 0, 0, 1, 0],
-            create: (time) => this.createSnare(time)
+            create: (time) => this.create8bitSnare(time)
         };
 
         this.sounds.hihat = {
             type: 'beat',
             pattern: [1, 1, 1, 1, 1, 1, 1, 1],
-            create: (time) => this.createHihat(time)
+            create: (time) => this.create8bitHihat(time)
         };
 
-        // メロディ系
+        // メロディ系（8bit風）
         this.sounds.synth1 = {
             type: 'melody',
             pattern: [1, 0, 0, 1, 0, 0, 1, 0],
             notes: ['C4', 'E4', 'G4', 'C5'],
-            create: (time, note) => this.createSynth(time, note, 'sine')
+            create: (time, note) => this.create8bitMelody(time, note, 'square')
         };
 
         this.sounds.synth2 = {
             type: 'melody',
             pattern: [0, 1, 0, 0, 1, 0, 0, 1],
             notes: ['E4', 'G4', 'B4', 'E5'],
-            create: (time, note) => this.createSynth(time, note, 'triangle')
+            create: (time, note) => this.create8bitMelody(time, note, 'triangle')
         };
 
         this.sounds.piano = {
             type: 'melody',
             pattern: [1, 0, 1, 0, 1, 0, 1, 0],
             notes: ['C4', 'E4', 'G4', 'B4'],
-            create: (time, note) => this.createPiano(time, note)
+            create: (time, note) => this.create8bitArp(time, note)
         };
 
-        // ベース系
+        // ベース系（8bit風）
         this.sounds.bass1 = {
             type: 'bass',
             pattern: [1, 0, 0, 1, 0, 0, 1, 0],
             notes: ['C2', 'C2', 'G2', 'G2'],
-            create: (time, note) => this.createBass(time, note, 'sawtooth')
+            create: (time, note) => this.create8bitBass(time, note)
         };
 
         this.sounds.bass2 = {
             type: 'bass',
             pattern: [1, 0, 1, 0, 1, 0, 1, 0],
             notes: ['C2', 'E2', 'G2', 'B2'],
-            create: (time, note) => this.createBass(time, note, 'square')
+            create: (time, note) => this.create8bitBass(time, note)
         };
 
-        // エフェクト系
+        // エフェクト系（8bit風）
         this.sounds.fx1 = {
             type: 'fx',
             pattern: [1, 0, 0, 0, 0, 0, 0, 0],
-            create: (time) => this.createSparkle(time)
+            create: (time) => this.create8bitPowerUp(time)
         };
 
         this.sounds.fx2 = {
             type: 'fx',
             pattern: [0, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.createSweep(time)
+            create: (time) => this.create8bitCoin(time)
         };
 
         this.sounds.vocal = {
             type: 'fx',
             pattern: [1, 0, 0, 0, 1, 0, 0, 0],
-            create: (time) => this.createVocal(time)
+            create: (time) => this.create8bitJump(time)
         };
     }
 
-    // ノート名を周波数に変換
     noteToFreq(note) {
         const notes = {
             'C2': 65.41, 'D2': 73.42, 'E2': 82.41, 'F2': 87.31, 'G2': 98.00, 'A2': 110.00, 'B2': 123.47,
@@ -141,286 +165,234 @@ class AudioEngine {
         return notes[note] || 440;
     }
 
-    // キックドラム
-    createKick(time) {
+    // 8bit キック
+    create8bitKick(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(30, time + 0.1);
+
+        gain.gain.setValueAtTime(0.8, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
 
         osc.connect(gain);
         gain.connect(this.masterGain);
 
-        osc.frequency.setValueAtTime(150, time);
-        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
-
-        gain.gain.setValueAtTime(1, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
-
         osc.start(time);
-        osc.stop(time + 0.5);
+        osc.stop(time + 0.15);
     }
 
-    // スネアドラム
-    createSnare(time) {
-        // ノイズ部分
-        const bufferSize = this.audioContext.sampleRate * 0.2;
-        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-        const data = buffer.getChannelData(0);
-
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = this.audioContext.createBufferSource();
-        noise.buffer = buffer;
-
-        const noiseFilter = this.audioContext.createBiquadFilter();
-        noiseFilter.type = 'highpass';
-        noiseFilter.frequency.value = 1000;
-
-        const noiseGain = this.audioContext.createGain();
-        noiseGain.gain.setValueAtTime(0.5, time);
-        noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(this.masterGain);
-
-        noise.start(time);
-
-        // トーン部分
-        const osc = this.audioContext.createOscillator();
-        const oscGain = this.audioContext.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.value = 180;
-
-        oscGain.gain.setValueAtTime(0.7, time);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-
-        osc.connect(oscGain);
-        oscGain.connect(this.masterGain);
-
-        osc.start(time);
-        osc.stop(time + 0.2);
-    }
-
-    // ハイハット
-    createHihat(time) {
-        const bufferSize = this.audioContext.sampleRate * 0.05;
-        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-        const data = buffer.getChannelData(0);
-
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = this.audioContext.createBufferSource();
-        noise.buffer = buffer;
-
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'highpass';
-        filter.frequency.value = 7000;
-
-        const gain = this.audioContext.createGain();
-        gain.gain.setValueAtTime(0.3, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.masterGain);
-
-        noise.start(time);
-    }
-
-    // シンセサイザー
-    createSynth(time, note, waveType) {
+    // 8bit スネア（ノイズ風）
+    create8bitSnare(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
 
-        osc.type = waveType;
-        osc.frequency.value = this.noteToFreq(note);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, time);
+        osc.frequency.setValueAtTime(150, time + 0.02);
+        osc.frequency.setValueAtTime(100, time + 0.04);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, time);
-        filter.frequency.exponentialRampToValueAtTime(500, time + 0.3);
+        gain.gain.setValueAtTime(0.6, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
 
-        gain.gain.setValueAtTime(0.3, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
-
-        osc.connect(filter);
-        filter.connect(gain);
+        osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(time);
-        osc.stop(time + 0.4);
-    }
+        osc.stop(time + 0.1);
 
-    // ピアノ風サウンド
-    createPiano(time, note) {
-        const osc1 = this.audioContext.createOscillator();
+        // ノイズ風の追加音
         const osc2 = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
+        const gain2 = this.audioContext.createGain();
+        osc2.type = 'square';
+        osc2.frequency.value = 400;
 
-        const freq = this.noteToFreq(note);
-        osc1.type = 'triangle';
-        osc1.frequency.value = freq;
+        gain2.gain.setValueAtTime(0.3, time);
+        gain2.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
 
-        osc2.type = 'sine';
-        osc2.frequency.value = freq * 2;
-
-        gain.gain.setValueAtTime(0.4, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
-
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(this.masterGain);
-
-        osc1.start(time);
+        osc2.connect(gain2);
+        gain2.connect(this.masterGain);
         osc2.start(time);
-        osc1.stop(time + 0.8);
-        osc2.stop(time + 0.8);
+        osc2.stop(time + 0.08);
     }
 
-    // ベース
-    createBass(time, note, waveType) {
+    // 8bit ハイハット
+    create8bitHihat(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
+
+        osc.type = 'square';
+        osc.frequency.value = 800;
+
+        gain.gain.setValueAtTime(0.15, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.03);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + 0.03);
+    }
+
+    // 8bit メロディ
+    create8bitMelody(time, note, waveType = 'square') {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
 
         osc.type = waveType;
         osc.frequency.value = this.noteToFreq(note);
 
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.setValueAtTime(0.25, time + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
 
-        gain.gain.setValueAtTime(0.5, time);
-        gain.gain.exponentialRampToValueAtTime(0.1, time + 0.3);
-
-        osc.connect(filter);
-        filter.connect(gain);
+        osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(time);
-        osc.stop(time + 0.4);
+        osc.stop(time + 0.3);
     }
 
-    // キラキラエフェクト
-    createSparkle(time) {
-        const frequencies = [1200, 1800, 2400, 3000];
+    // 8bit アルペジオ
+    create8bitArp(time, note) {
+        const freq = this.noteToFreq(note);
+        const freqs = [freq, freq * 1.25, freq * 1.5];
 
-        frequencies.forEach((freq, i) => {
+        freqs.forEach((f, i) => {
             const osc = this.audioContext.createOscillator();
             const gain = this.audioContext.createGain();
 
-            osc.type = 'sine';
-            osc.frequency.value = freq;
+            osc.type = 'square';
+            osc.frequency.value = f;
 
             const startTime = time + i * 0.05;
-            gain.gain.setValueAtTime(0.15, startTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+            gain.gain.setValueAtTime(0.2, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
 
             osc.connect(gain);
             gain.connect(this.masterGain);
 
             osc.start(startTime);
-            osc.stop(startTime + 0.3);
+            osc.stop(startTime + 0.15);
         });
     }
 
-    // スイープエフェクト
-    createSweep(time) {
+    // 8bit ベース
+    create8bitBass(time, note) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
 
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(100, time);
-        osc.frequency.exponentialRampToValueAtTime(2000, time + 0.5);
+        osc.type = 'square';
+        osc.frequency.value = this.noteToFreq(note);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(500, time);
-        filter.frequency.exponentialRampToValueAtTime(4000, time + 0.5);
+        gain.gain.setValueAtTime(0.4, time);
+        gain.gain.setValueAtTime(0.35, time + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
 
-        gain.gain.setValueAtTime(0.2, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.6);
-
-        osc.connect(filter);
-        filter.connect(gain);
+        osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(time);
-        osc.stop(time + 0.6);
+        osc.stop(time + 0.2);
     }
 
-    // ボイス風エフェクト
-    createVocal(time) {
+    // 8bit パワーアップ音
+    create8bitPowerUp(time) {
+        const notes = [400, 500, 600, 800];
+        notes.forEach((freq, i) => {
+            const osc = this.audioContext.createOscillator();
+            const gain = this.audioContext.createGain();
+
+            osc.type = 'square';
+            osc.frequency.value = freq;
+
+            const startTime = time + i * 0.08;
+            gain.gain.setValueAtTime(0.25, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.1);
+
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc.start(startTime);
+            osc.stop(startTime + 0.1);
+        });
+    }
+
+    // 8bit コイン音
+    create8bitCoin(time) {
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
 
-        osc.type = 'sawtooth';
-        osc.frequency.value = 220;
-
-        // フォルマントフィルター風
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(800, time);
-        filter.frequency.setValueAtTime(1200, time + 0.1);
-        filter.frequency.setValueAtTime(800, time + 0.2);
-        filter.Q.value = 5;
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(988, time);  // B5
+        osc.frequency.setValueAtTime(1319, time + 0.08);  // E6
 
         gain.gain.setValueAtTime(0.3, time);
-        gain.gain.setValueAtTime(0.4, time + 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
 
-        osc.connect(filter);
-        filter.connect(gain);
+        osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(time);
-        osc.stop(time + 0.4);
+        osc.stop(time + 0.2);
     }
 
-    // サウンドをスロットに追加
+    // 8bit ジャンプ音
+    create8bitJump(time) {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, time);
+        osc.frequency.exponentialRampToValueAtTime(600, time + 0.15);
+
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(time);
+        osc.stop(time + 0.2);
+    }
+
     addSoundToSlot(slotIndex, soundName) {
         this.activeSounds[slotIndex] = soundName;
     }
 
-    // スロットからサウンドを削除
     removeSoundFromSlot(slotIndex) {
         delete this.activeSounds[slotIndex];
     }
 
-    // 再生開始
     play() {
         this.resumeContext();
         this.isPlaying = true;
+        this.wasPlayingBeforePause = true;
         this.currentBeat = 0;
         this.scheduleBeat();
     }
 
-    // 再生停止
     stop() {
         this.isPlaying = false;
+        this.wasPlayingBeforePause = false;
         if (this.beatInterval) {
             clearTimeout(this.beatInterval);
             this.beatInterval = null;
         }
     }
 
-    // テンポ設定
     setTempo(bpm) {
         this.tempo = bpm;
     }
 
-    // ビートスケジューリング
     scheduleBeat() {
         if (!this.isPlaying) return;
 
-        const beatDuration = 60 / this.tempo / 2; // 8分音符
+        const beatDuration = 60 / this.tempo / 2;
         const currentTime = this.audioContext.currentTime;
 
-        // アクティブなサウンドを再生
         Object.entries(this.activeSounds).forEach(([slotIndex, soundName]) => {
             const sound = this.sounds[soundName];
             if (sound && sound.pattern[this.currentBeat]) {
@@ -433,7 +405,6 @@ class AudioEngine {
             }
         });
 
-        // ビートイベントを発火
         window.dispatchEvent(new CustomEvent('beat', {
             detail: {
                 beat: this.currentBeat,
@@ -448,7 +419,6 @@ class AudioEngine {
         }, beatDuration * 1000);
     }
 
-    // プレビュー再生
     previewSound(soundName) {
         this.resumeContext();
         const sound = this.sounds[soundName];
@@ -463,5 +433,4 @@ class AudioEngine {
     }
 }
 
-// グローバルインスタンス
 const audioEngine = new AudioEngine();
